@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>单人贪吃蛇 - 炫彩大作战</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
+        
+        body {
+            font-family: 'ZCOOL KuaiLe', cursive, system-ui;
+            background: #1a1a2e;
+            overflow: hidden;
+        }
+
+        .game-container {
+            position: relative;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.05);
+            border: 4px solid #16213e;
+            border-radius: 12px;
+            background: #0f3460;
+        }
+
+        canvas {
+            display: block;
+            border-radius: 8px;
+        }
+
+        .snake-shadow {
+            filter: drop-shadow(0 0 8px currentColor);
+        }
+
+        .panel-glass {
+            background: rgba(22, 33, 62, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .btn-neon {
+            transition: all 0.3s ease;
+            text-shadow: 0 0 5px currentColor;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+        }
+        .btn-neon:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .btn-neon:active {
+            transform: translateY(0);
+        }
+
+        .player-1-theme { color: #4ade80; border-color: #4ade80; }
+        .player-2-theme { color: #f87171; border-color: #f87171; }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pulse-custom {
+            animation: pulse 2s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- Header -->
+    <div class="mb-6 text-center">
+        <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 via-blue-500 to-red-500 tracking-widest italic mb-2">
+            SNAKE BATTLE
+        </h1>
+        <p class="text-blue-300 text-lg opacity-80">炫彩贪吃蛇单人版</p>
+    </div>
+
+    <div class="flex flex-col lg:flex-row gap-8 items-center justify-center w-full max-w-6xl">
+        
+        <!-- Player Stats -->
+        <div class="panel-glass p-6 rounded-2xl w-full lg:w-48 border-l-4 border-green-400 shadow-lg">
+            <div class="flex flex-col items-center">
+                <div class="w-12 h-12 bg-green-400 rounded-full flex items-center justify-center mb-3 shadow-[0_0_15px_rgba(74,222,128,0.5)]">
+                    <i class="fas fa-snake text-white text-xl"></i>
+                </div>
+                <h2 class="text-green-400 font-bold text-xl mb-1">当前分数</h2>
+                <p class="text-gray-400 text-xs mb-3 font-sans">WASD / 方向键</p>
+                <div class="text-3xl font-black text-white" id="score-1">0</div>
+                <div class="text-xs text-green-300/50 mt-1 uppercase tracking-tighter">Current Score</div>
+            </div>
+        </div>
+
+        <!-- Game Board -->
+        <div class="relative">
+            <div class="game-container">
+                <canvas id="gameCanvas" width="600" height="600"></canvas>
+                
+                <!-- Overlay Screens -->
+                <div id="start-screen" class="absolute inset-0 flex flex-col items-center justify-center bg-black/60 rounded-lg z-10 p-8 text-center backdrop-blur-sm">
+                    <div class="bg-white/5 p-8 rounded-3xl border border-white/10 shadow-2xl">
+                        <i class="fas fa-gamepad text-6xl text-blue-400 mb-6 animate-bounce"></i>
+                        <h2 class="text-4xl text-white font-bold mb-4">准备好了吗？</h2>
+                        <p class="text-gray-300 mb-8 max-w-sm">使用 WASD 或 方向键控制蛇移动<br>吃掉金色食物获得积分</p>
+                        <button id="start-btn" class="px-10 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-full text-2xl font-bold btn-neon shadow-[0_0_20px_rgba(37,99,235,0.4)]">
+                            开始游戏
+                        </button>
+                    </div>
+                </div>
+
+                <div id="pause-screen" class="absolute inset-0 hidden flex flex-col items-center justify-center bg-black/40 rounded-lg z-10 backdrop-blur-md">
+                    <h2 class="text-5xl text-white font-black italic mb-8">暂停中</h2>
+                    <button id="resume-btn" class="px-8 py-3 bg-white/20 hover:bg-white/30 text-white rounded-full text-xl font-bold border border-white/20">
+                        继续游戏
+                    </button>
+                </div>
+
+                <div id="game-over-screen" class="absolute inset-0 hidden flex flex-col items-center justify-center bg-black/80 rounded-lg z-20 p-8 text-center">
+                    <div class="animate-pulse-custom">
+                        <h2 class="text-6xl text-red-500 font-black mb-2" id="winner-text">游戏结束</h2>
+                        <p class="text-white text-xl mb-8" id="reason-text">你撞墙了！</p>
+                    </div>
+                    <div class="flex gap-4">
+                        <button id="restart-btn" class="px-10 py-4 bg-green-600 hover:bg-green-500 text-white rounded-full text-xl font-bold btn-neon">
+                            再来一局
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Controls Hint -->
+            <div class="flex justify-between mt-4 px-2 text-gray-500 text-sm font-sans">
+                <div class="flex items-center gap-2"><kbd class="px-2 py-1 bg-gray-800 rounded border border-gray-700">P</kbd> 暂停</div>
+                <div class="flex items-center gap-2"><kbd class="px-2 py-1 bg-gray-800 rounded border border-gray-700">ESC</kbd> 重新开始</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Audio Effects (Optional) -->
+    <!-- <audio id="eat-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-game-jump-coin-216.mp3"></audio> -->
+    <!-- <audio id="die-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-player-losing-or-failing-2042.mp3"></audio> -->
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const score1El = document.getElementById('score-1');
+        const startScreen = document.getElementById('start-screen');
+        const pauseScreen = document.getElementById('pause-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const winnerText = document.getElementById('winner-text');
+        const reasonText = document.getElementById('reason-text');
+
+        // Config
+        const GRID_SIZE = 20;
+        const TILE_COUNT = canvas.width / GRID_SIZE;
+        const INITIAL_SPEED = 100;
+        const COLORS = {
+            bg: '#0f3460',
+            grid: 'rgba(255,255,255,0.03)',
+            p1: '#4ade80',
+            p1Head: '#22c55e',
+            food: '#fbbf24'
+        };
+
+        // Game State
+        let gameLoop = null;
+        let isPaused = false;
+        let isRunning = false;
+        let food = { x: 15, y: 15 };
+        
+        class Snake {
+            constructor(x, y, color, headColor) {
+                this.initialPos = { x, y };
+                this.body = [{ x, y }, { x: x-1, y }, { x: x-2, y }];
+                this.dx = 1;
+                this.dy = 0;
+                this.nextDx = 1;
+                this.nextDy = 0;
+                this.color = color;
+                this.headColor = headColor;
+                this.score = 0;
+                this.isAlive = true;
+            }
+
+            reset() {
+                this.body = [
+                    { x: this.initialPos.x, y: this.initialPos.y },
+                    { x: this.initialPos.x - 1, y: this.initialPos.y },
+                    { x: this.initialPos.x - 2, y: this.initialPos.y }
+                ];
+                this.dx = 1;
+                this.dy = 0;
+                this.nextDx = 1;
+                this.nextDy = 0;
+                this.score = 0;
+                this.isAlive = true;
+            }
+
+            move() {
+                this.dx = this.nextDx;
+                this.dy = this.nextDy;
+
+                const head = { x: this.body[0].x + this.dx, y: this.body[0].y + this.dy };
+                
+                // Wall Collision
+                if (head.x < 0 || head.x >= TILE_COUNT || head.y < 0 || head.y >= TILE_COUNT) {
+                    return { alive: false, reason: "你撞到了墙壁！" };
+                }
+
+                // Self Collision
+                if (this.body.some(segment => segment.x === head.x && segment.y === head.y)) {
+                    return { alive: false, reason: "你咬到了自己！" };
+                }
+
+                this.body.unshift(head);
+
+                // Food Collision
+                if (head.x === food.x && head.y === food.y) {
+                    this.score += 10;
+                    spawnFood();
+                    return { alive: true };
+                } else {
+                    this.body.pop();
+                    return { alive: true };
+                }
+            }
+
+            draw() {
+                this.body.forEach((segment, index) => {
+                    ctx.fillStyle = index === 0 ? this.headColor : this.color;
+                    ctx.shadowBlur = index === 0 ? 15 : 5;
+                    ctx.shadowColor = this.color;
+                    
+                    const x = segment.x * GRID_SIZE;
+                    const y = segment.y * GRID_SIZE;
+                    const r = index === 0 ? 6 : 4;
+                    
+                    ctx.beginPath();
+                    ctx.roundRect(x + 1, y + 1, GRID_SIZE - 2, GRID_SIZE - 2, r);
+                    ctx.fill();
+                    
+                    if (index === 0) {
+                        ctx.fillStyle = 'white';
+                        ctx.shadowBlur = 0;
+                        const eyeSize = 3;
+                        if (this.dx === 1) { // Right
+                            ctx.fillRect(x + 14, y + 5, eyeSize, eyeSize);
+                            ctx.fillRect(x + 14, y + 12, eyeSize, eyeSize);
+                        } else if (this.dx === -1) { // Left
+                            ctx.fillRect(x + 3, y + 5, eyeSize, eyeSize);
+                            ctx.fillRect(x + 3, y + 12, eyeSize, eyeSize);
+                        } else if (this.dy === -1) { // Up
+                            ctx.fillRect(x + 5, y + 3, eyeSize, eyeSize);
+                            ctx.fillRect(x + 12, y + 3, eyeSize, eyeSize);
+                        } else { // Down
+                            ctx.fillRect(x + 5, y + 14, eyeSize, eyeSize);
+                            ctx.fillRect(x + 12, y + 14, eyeSize, eyeSize);
+                        }
+                    }
+                });
+            }
+
+            handleInput(key) {
+                const upKeys = ['w', 'arrowup'];
+                const downKeys = ['s', 'arrowdown'];
+                const leftKeys = ['a', 'arrowleft'];
+                const rightKeys = ['d', 'arrowright'];
+
+                if (upKeys.includes(key) && this.dy === 0) { this.nextDx = 0; this.nextDy = -1; }
+                if (downKeys.includes(key) && this.dy === 0) { this.nextDx = 0; this.nextDy = 1; }
+                if (leftKeys.includes(key) && this.dx === 0) { this.nextDx = -1; this.nextDy = 0; }
+                if (rightKeys.includes(key) && this.dx === 0) { this.nextDx = 1; this.nextDy = 0; }
+            }
+        }
+
+        const snake = new Snake(10, 15, COLORS.p1, COLORS.p1Head);
+
+        function spawnFood() {
+            let newFood;
+            while (true) {
+                newFood = {
+                    x: Math.floor(Math.random() * TILE_COUNT),
+                    y: Math.floor(Math.random() * TILE_COUNT)
+                };
+                if (!snake.body.some(s => s.x === newFood.x && s.y === newFood.y)) break;
+            }
+            food = newFood;
+        }
+
+        function drawGrid() {
+            ctx.strokeStyle = COLORS.grid;
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= TILE_COUNT; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * GRID_SIZE, 0);
+                ctx.lineTo(i * GRID_SIZE, canvas.height);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i * GRID_SIZE);
+                ctx.lineTo(canvas.width, i * GRID_SIZE);
+                ctx.stroke();
+            }
+        }
+
+        function drawFood() {
+            ctx.fillStyle = COLORS.food;
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = COLORS.food;
+            ctx.beginPath();
+            const centerX = food.x * GRID_SIZE + GRID_SIZE/2;
+            const centerY = food.y * GRID_SIZE + GRID_SIZE/2;
+            ctx.arc(centerX, centerY, GRID_SIZE/2 - 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = 'white';
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.arc(centerX - 3, centerY - 3, 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function update() {
+            if (isPaused || !isRunning) return;
+
+            const result = snake.move();
+
+            if (!result.alive) {
+                endGame("游戏结束", result.reason);
+                return;
+            }
+
+            score1El.textContent = snake.score;
+            render();
+        }
+
+        function render() {
+            ctx.fillStyle = COLORS.bg;
+            ctx.shadowBlur = 0;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            drawGrid();
+            drawFood();
+            snake.draw();
+        }
+
+        function startGame() {
+            snake.reset();
+            spawnFood();
+            isRunning = true;
+            isPaused = false;
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            pauseScreen.classList.add('hidden');
+            
+            if (gameLoop) clearInterval(gameLoop);
+            gameLoop = setInterval(update, INITIAL_SPEED);
+            render();
+        }
+
+        function endGame(title, reason) {
+            isRunning = false;
+            clearInterval(gameLoop);
+            winnerText.textContent = title;
+            reasonText.textContent = reason;
+            gameOverScreen.classList.remove('hidden');
+        }
+
+        function togglePause() {
+            if (!isRunning) return;
+            isPaused = !isPaused;
+            pauseScreen.classList.toggle('hidden', !isPaused);
+        }
+
+        window.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            snake.handleInput(key);
+            if (key === 'p') togglePause();
+            if (key === 'escape') startGame();
+        });
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+        document.getElementById('resume-btn').addEventListener('click', togglePause);
+
+        render();
+    </script>
+</body>
+</html>
